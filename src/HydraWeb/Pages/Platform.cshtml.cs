@@ -30,7 +30,7 @@ public class PlatformModel : PageModel
 
         try
         {
-            var b = new SqlConnectionStringBuilder(_cfg.GetConnectionString("Hydra"));
+            var b = new SqlConnectionStringBuilder(HydraDb.ResolveConnectionString(_cfg));
             SqlTarget = $"{b.DataSource} / {b.InitialCatalog} (user {b.UserID})";
         }
         catch { SqlTarget = "(unparseable)"; }

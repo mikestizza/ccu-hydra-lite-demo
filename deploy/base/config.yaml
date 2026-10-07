@@ -13,5 +13,6 @@ metadata:
     app.kubernetes.io/part-of: hydra
 type: Opaque
 stringData:
+  # The only secret the app needs. It composes the connection string from this
+  # plus the hydra-db service name (Hydra__DbHost in the ConfigMap).
   MSSQL_SA_PASSWORD: "${SQL_SA_PASSWORD}"
-  ConnectionStrings__Hydra: "Server=hydra-db,1433;Database=Hydra;User Id=sa;Password=${SQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=True;Connect Timeout=15"

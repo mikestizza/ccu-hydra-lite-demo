@@ -24,9 +24,36 @@ public sealed class HydraDb
 
     public HydraDb(IConfiguration cfg, ILogger<HydraDb> log)
     {
-        _connString = cfg.GetConnectionString("Hydra")
-            ?? throw new InvalidOperationException("ConnectionStrings:Hydra is not configured");
+        _connString = ResolveConnectionString(cfg);
         _log = log;
+    }
+
+    /// <summary>
+    /// Precedence: an explicit ConnectionStrings:Hydra wins. Otherwise compose one
+    /// from Hydra:DbHost (the Kubernetes service name) and MSSQL_SA_PASSWORD, which
+    /// is the single key operators put in the hydra-secret Secret.
+    /// </summary>
+    public static string ResolveConnectionString(IConfiguration cfg)
+    {
+        var explicitCs = cfg.GetConnectionString("Hydra");
+        if (!string.IsNullOrWhiteSpace(explicitCs)) return explicitCs;
+
+        var pw = cfg["MSSQL_SA_PASSWORD"];
+        if (string.IsNullOrWhiteSpace(pw))
+            throw new InvalidOperationException("Set ConnectionStrings__Hydra or MSSQL_SA_PASSWORD");
+
+        var host = cfg["Hydra:DbHost"] ?? "hydra-db";
+        var db   = cfg["Hydra:DbName"] ?? "Hydra";
+        return new SqlConnectionStringBuilder
+        {
+            DataSource = $"{host},1433",
+            InitialCatalog = db,
+            UserID = "sa",
+            Password = pw,
+            TrustServerCertificate = true,
+            Encrypt = SqlConnectionEncryptOption.Mandatory,
+            ConnectTimeout = 15
+        }.ConnectionString;
     }
 
     private SqlConnection Open()

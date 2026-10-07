@@ -5,7 +5,7 @@
 # under a project-scoped service account, so this overlay:
 #   - does not create a Namespace (Kommander owns the project namespace)
 #   - does not create the Secret (it is created in the project's Secrets tab,
-#     name hydra-secret, keys MSSQL_SA_PASSWORD and ConnectionStrings__Hydra)
+#     name hydra-secret, single key MSSQL_SA_PASSWORD)
 #   - hardcodes the ingress host and class (no Flux variable substitution here)
 #
 # CI updates the image tags below on every merge to main, same as prod.
@@ -52,4 +52,7 @@ patches:
         value: kommander-traefik
       - op: replace
         path: /spec/rules/0/host
+        value: hydra-project.10.38.207.251.sslip.io
+      - op: replace
+        path: /spec/tls/0/hosts/0
         value: hydra-project.10.38.207.251.sslip.io

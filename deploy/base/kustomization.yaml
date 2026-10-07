@@ -17,6 +17,8 @@ configMapGenerator:
       - "Hydra__Accent=#0f2a5a"
       - Hydra__JobIntervalSeconds=45
       - ColbyApi__BaseUrl=http://colby-api
+      - Hydra__DbHost=hydra-db
+      - Hydra__DbName=Hydra
 generatorOptions:
   disableNameSuffixHash: true
   labels:

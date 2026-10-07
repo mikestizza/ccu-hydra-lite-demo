@@ -100,6 +100,12 @@ metadata:
     app.kubernetes.io/part-of: hydra
 spec:
   ingressClassName: ${INGRESS_CLASS:=kommander-traefik}
+  # No secretName: Traefik serves its default certificate, so https works on
+  # the lab. In production this is a cert-manager Certificate or the Fortinet
+  # terminating TLS in front.
+  tls:
+    - hosts:
+        - hydra.${INGRESS_DOMAIN}
   rules:
     - host: hydra.${INGRESS_DOMAIN}
       http:

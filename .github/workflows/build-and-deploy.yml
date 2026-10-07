@@ -169,6 +169,9 @@ jobs:
                 - op: replace
                   path: /spec/rules/0/host
                   value: hydra-${SLUG}.\${INGRESS_DOMAIN}
+                - op: replace
+                  path: /spec/tls/0/hosts/0
+                  value: hydra-${SLUG}.\${INGRESS_DOMAIN}
             - target:
                 kind: StatefulSet
                 name: hydra-db
