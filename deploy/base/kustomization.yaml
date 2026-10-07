@@ -1,0 +1,22 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - config.yaml
+  - hydra-db.yaml
+  - colby-api.yaml
+  - hydra-web.yaml
+
+# Non-secret app configuration. Overlays merge per-environment values.
+configMapGenerator:
+  - name: hydra-config
+    literals:
+      - Hydra__Environment=Production
+      - Hydra__Banner=
+      - "Hydra__Accent=#0f2a5a"
+      - Hydra__JobIntervalSeconds=45
+      - ColbyApi__BaseUrl=http://colby-api
+generatorOptions:
+  disableNameSuffixHash: true
+  labels:
+    app.kubernetes.io/part-of: hydra

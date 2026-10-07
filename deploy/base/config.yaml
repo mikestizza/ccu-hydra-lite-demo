@@ -1,0 +1,17 @@
+# Secret values are NOT in Git. ${SQL_SA_PASSWORD} is substituted by Flux at
+# apply time from the `hydra-secrets` Secret that bootstrap.sh creates in the
+# Flux namespace. In production this is where External Secrets Operator would
+# populate from AWS Parameter Store or Azure Key Vault.
+#
+# Non-secret configuration (hydra-config) is generated in kustomization.yaml so
+# overlays can merge per-environment values into it.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hydra-secret
+  labels:
+    app.kubernetes.io/part-of: hydra
+type: Opaque
+stringData:
+  MSSQL_SA_PASSWORD: "${SQL_SA_PASSWORD}"
+  ConnectionStrings__Hydra: "Server=hydra-db,1433;Database=Hydra;User Id=sa;Password=${SQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=True;Connect Timeout=15"

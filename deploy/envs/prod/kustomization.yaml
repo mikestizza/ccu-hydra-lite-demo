@@ -1,0 +1,20 @@
+# Production overlay. CI updates the image tags below on every merge to main.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: hydra
+resources:
+  - ../../base
+images:
+  - name: ghcr.io/mikestizza/hydra-web
+    newTag: main
+  - name: ghcr.io/mikestizza/colby-api
+    newTag: main
+configMapGenerator:
+  - name: hydra-config
+    behavior: merge
+    literals:
+      - Hydra__Environment=Production
+      - Hydra__Banner=
+      - "Hydra__Accent=#0f2a5a"
+generatorOptions:
+  disableNameSuffixHash: true

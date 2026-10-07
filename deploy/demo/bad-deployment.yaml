@@ -1,0 +1,26 @@
+# Demo: a deployment that breaks both platform policies. Apply it live and
+# watch Gatekeeper reject it before it ever reaches the cluster:
+#
+#   kubectl apply -f deploy/demo/bad-deployment.yaml
+#
+# Expected: "admission webhook denied the request" with both policy messages.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sketchy-sidecar
+  namespace: hydra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sketchy-sidecar
+  template:
+    metadata:
+      labels:
+        app: sketchy-sidecar
+    spec:
+      containers:
+        - name: sketchy
+          image: nginx:latest
+          ports:
+            - containerPort: 80

@@ -1,0 +1,51 @@
+# Gatekeeper: every container in a hydra-managed namespace must declare CPU and
+# memory limits. Based on the gatekeeper-library "containerlimits" template,
+# trimmed to the check that matters for the demo.
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: hydrarequiredlimits
+spec:
+  crd:
+    spec:
+      names:
+        kind: HydraRequiredLimits
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package hydrarequiredlimits
+
+        containers[c] {
+          c := input.review.object.spec.template.spec.containers[_]
+        }
+        containers[c] {
+          c := input.review.object.spec.containers[_]
+        }
+
+        violation[{"msg": msg}] {
+          c := containers[_]
+          not c.resources.limits.cpu
+          msg := sprintf("Policy: container <%v> must set resources.limits.cpu (Hydra platform standard)", [c.name])
+        }
+
+        violation[{"msg": msg}] {
+          c := containers[_]
+          not c.resources.limits.memory
+          msg := sprintf("Policy: container <%v> must set resources.limits.memory (Hydra platform standard)", [c.name])
+        }
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: HydraRequiredLimits
+metadata:
+  name: hydra-containers-must-have-limits
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: ["apps"]
+        kinds: ["Deployment", "StatefulSet", "DaemonSet"]
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    namespaceSelector:
+      matchLabels:
+        hydra.ccu/managed: "true"

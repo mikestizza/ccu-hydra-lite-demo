@@ -1,0 +1,49 @@
+@page
+@model PlatformModel
+@{
+    ViewData["Title"] = "Platform";
+}
+
+<h1>Platform</h1>
+<p class="lede">What this process is running on. Same application code, no IIS, no Windows host.</p>
+
+<div class="grid2">
+    <div class="card">
+        <h2 style="margin-top:0">Runtime</h2>
+        <dl class="kv">
+            <dt>Framework</dt><dd>@System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription</dd>
+            <dt>OS</dt><dd>@System.Runtime.InteropServices.RuntimeInformation.OSDescription</dd>
+            <dt>Architecture</dt><dd>@System.Runtime.InteropServices.RuntimeInformation.OSArchitecture</dd>
+            <dt>Web server</dt><dd>Kestrel (in-process, no IIS)</dd>
+            <dt>Process user</dt><dd><code>@Model.User</code></dd>
+            <dt>CPU limit seen</dt><dd>@Environment.ProcessorCount logical processor(s)</dd>
+            <dt>Memory (working set)</dt><dd>@((Environment.WorkingSet / 1024 / 1024).ToString("N0")) MB</dd>
+        </dl>
+    </div>
+    <div class="card">
+        <h2 style="margin-top:0">Where am I</h2>
+        <dl class="kv">
+            <dt>Environment</dt><dd>@App.Environment</dd>
+            <dt>Namespace</dt><dd><code>@App.Namespace</code></dd>
+            <dt>Pod</dt><dd><code>@App.Pod</code></dd>
+            <dt>Node</dt><dd><code>@App.Node</code></dd>
+            <dt>Image build</dt><dd><code>@App.Version</code></dd>
+            <dt>Git commit</dt><dd><code>@App.GitSha</code></dd>
+            <dt>Started</dt><dd>@App.StartedAt.ToString("yyyy-MM-dd HH:mm:ss") UTC (@App.Uptime ago)</dd>
+        </dl>
+    </div>
+</div>
+
+<div class="card">
+    <h2 style="margin-top:0">Dependencies and configuration</h2>
+    <dl class="kv">
+        <dt>SQL Server</dt><dd><code>@Model.SqlServer</code><br /><small class="lede">Connection string comes from a Kubernetes Secret, not from the image or from Git.</small></dd>
+        <dt>SQL target</dt><dd><code>@Model.SqlTarget</code></dd>
+        <dt>Colby API</dt><dd><code>@Model.ColbyUrl</code><br /><small class="lede">A ClusterIP service name. Resolves inside the cluster only.</small></dd>
+        <dt>Config sources</dt><dd>appsettings.json, then environment variables injected by the Deployment (ConfigMap and Secret). Identical image in every environment.</dd>
+    </dl>
+</div>
+
+<div class="callout">
+    What changed from IIS: the app hosts itself with Kestrel and listens on port 8080 as a non-root user. TLS terminates at the ingress controller (Traefik) in front of the pods, which is where the F5 or Fortinet would point. Entra ID, the Oracle managed driver and SqlClient are all NuGet packages with no Windows dependency.
+</div>

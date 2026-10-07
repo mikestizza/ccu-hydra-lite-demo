@@ -1,0 +1,244 @@
+# CI/CD for Hydra-lite
+#
+# On every push:
+#   1. Build hydra-web and colby-api images, push to GHCR tagged <branch>-<sha>
+#   2. main   -> update deploy/envs/prod image tags (Flux rolls prod)
+#      branch -> write deploy/envs/<slug> + deploy/flux/envs/<slug>.yaml (Flux creates an ephemeral namespace)
+# On branch delete:
+#   remove the branch's env files (Flux prunes the namespace)
+#
+# Commits made here use GITHUB_TOKEN, which does not trigger further workflow runs.
+name: build-and-deploy
+
+on:
+  push:
+    branches: ["**"]
+    paths-ignore:
+      - "deploy/envs/**"
+      - "deploy/flux/envs/**"
+      - "docs/**"
+      - "README.md"
+  delete:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: deploy-manifests
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  OWNER: ${{ github.repository_owner }}
+
+jobs:
+  # ---------------------------------------------------------------- build
+  build:
+    if: github.event_name != 'delete'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      slug: ${{ steps.meta.outputs.slug }}
+      branch: ${{ steps.meta.outputs.branch }}
+    strategy:
+      matrix:
+        include:
+          - name: hydra-web
+            context: src/HydraWeb
+          - name: colby-api
+            context: src/ColbyApi
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute tag
+        id: meta
+        shell: bash
+        run: |
+          BRANCH="${GITHUB_REF_NAME}"
+          SLUG=$(echo "$BRANCH" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g' | cut -c1-30 | sed -E 's/-+$//')
+          SHA="${GITHUB_SHA::7}"
+          echo "branch=$BRANCH"  >> "$GITHUB_OUTPUT"
+          echo "slug=$SLUG"      >> "$GITHUB_OUTPUT"
+          echo "tag=$SLUG-$SHA"  >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push ${{ matrix.name }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.name }}:${{ steps.meta.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.name }}:${{ steps.meta.outputs.slug }}
+          build-args: |
+            APP_VERSION=${{ steps.meta.outputs.tag }}
+            GIT_SHA=${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+  # ---------------------------------------------------------------- validate manifests
+  validate:
+    if: github.event_name != 'delete'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install kustomize
+        run: |
+          curl -sL https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash
+          sudo mv kustomize /usr/local/bin/
+      - name: kustomize build every env and the policy bundle
+        run: |
+          set -e
+          for d in deploy/envs/*/ ; do
+            echo "== $d"; kustomize build "$d" | grep -c '^kind:'
+          done
+          echo "== deploy/policy"; kustomize build deploy/policy | grep -c '^kind:'
+          echo "all manifests build"
+
+  # ---------------------------------------------------------------- promote
+  promote:
+    needs: [build, validate]
+    if: github.event_name != 'delete'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Update manifests on main
+        shell: bash
+        env:
+          TAG: ${{ needs.build.outputs.tag }}
+          SLUG: ${{ needs.build.outputs.slug }}
+          BRANCH: ${{ needs.build.outputs.branch }}
+        run: |
+          set -euo pipefail
+          git config user.name  "hydra-ci[bot]"
+          git config user.email "hydra-ci@users.noreply.github.com"
+
+          if [ "$BRANCH" = "main" ]; then
+            echo "Promoting $TAG to prod"
+            sed -i -E "/name: ghcr.io\/${OWNER}\/(hydra-web|colby-api)/{n;s/newTag: .*/newTag: ${TAG}/}" deploy/envs/prod/kustomization.yaml
+            MSG="ci: promote ${TAG} to prod"
+          else
+            echo "Creating/updating ephemeral env hydra-${SLUG}"
+            mkdir -p "deploy/envs/${SLUG}"
+            cat > "deploy/envs/${SLUG}/kustomization.yaml" <<EOF
+          # Ephemeral environment for branch '${BRANCH}'. Generated by CI; removed when the branch is deleted.
+          apiVersion: kustomize.config.k8s.io/v1beta1
+          kind: Kustomization
+          namespace: hydra-${SLUG}
+          resources:
+            - ../../base
+          images:
+            - name: ghcr.io/${OWNER}/hydra-web
+              newTag: ${TAG}
+            - name: ghcr.io/${OWNER}/colby-api
+              newTag: ${TAG}
+          configMapGenerator:
+            - name: hydra-config
+              behavior: merge
+              literals:
+                - Hydra__Environment=${SLUG}
+                - "Hydra__Banner=Ephemeral environment for branch '${BRANCH}' (${TAG}). Deleted when the branch is."
+                - "Hydra__Accent=#7a2e8e"
+          generatorOptions:
+            disableNameSuffixHash: true
+          patches:
+            - target:
+                kind: Ingress
+                name: hydra-web
+              patch: |-
+                - op: replace
+                  path: /spec/rules/0/host
+                  value: hydra-${SLUG}.\${INGRESS_DOMAIN}
+            - target:
+                kind: StatefulSet
+                name: hydra-db
+              patch: |-
+                - op: replace
+                  path: /spec/volumeClaimTemplates/0/spec/resources/requests/storage
+                  value: 5Gi
+          EOF
+            cat > "deploy/flux/envs/${SLUG}.yaml" <<EOF
+          # Ephemeral environment for branch '${BRANCH}'. Generated by CI.
+          apiVersion: kustomize.toolkit.fluxcd.io/v1
+          kind: Kustomization
+          metadata:
+            name: hydra-${SLUG}
+            labels:
+              app.kubernetes.io/part-of: hydra
+              hydra.ccu/env: ${SLUG}
+              hydra.ccu/ephemeral: "true"
+          spec:
+            interval: 1m
+            retryInterval: 30s
+            timeout: 5m
+            prune: true
+            wait: false
+            sourceRef:
+              kind: GitRepository
+              name: hydra-lite
+            path: ./deploy/envs/${SLUG}
+            postBuild:
+              substituteFrom:
+                - kind: ConfigMap
+                  name: hydra-cluster-vars
+                - kind: Secret
+                  name: hydra-secrets
+          EOF
+            MSG="ci: ephemeral env hydra-${SLUG} -> ${TAG}"
+          fi
+
+          git add deploy/envs deploy/flux/envs
+          if git diff --cached --quiet; then
+            echo "No manifest changes"; exit 0
+          fi
+          git commit -m "$MSG" -m "[skip ci]"
+          for i in 1 2 3; do
+            git push origin HEAD:main && break
+            echo "push failed, rebasing and retrying ($i)"
+            git pull --rebase origin main
+          done
+
+  # ---------------------------------------------------------------- teardown
+  teardown:
+    if: github.event_name == 'delete' && github.event.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Remove ephemeral env for deleted branch
+        shell: bash
+        env:
+          BRANCH: ${{ github.event.ref }}
+        run: |
+          set -euo pipefail
+          SLUG=$(echo "$BRANCH" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g' | cut -c1-30 | sed -E 's/-+$//')
+          [ "$SLUG" = "main" ] && { echo "refusing to remove prod"; exit 0; }
+          git config user.name  "hydra-ci[bot]"
+          git config user.email "hydra-ci@users.noreply.github.com"
+          git rm -r --ignore-unmatch "deploy/envs/${SLUG}" "deploy/flux/envs/${SLUG}.yaml"
+          if git diff --cached --quiet; then echo "nothing to remove"; exit 0; fi
+          git commit -m "ci: tear down ephemeral env hydra-${SLUG} (branch '${BRANCH}' deleted)" -m "[skip ci]"
+          for i in 1 2 3; do
+            git push origin HEAD:main && break
+            git pull --rebase origin main
+          done

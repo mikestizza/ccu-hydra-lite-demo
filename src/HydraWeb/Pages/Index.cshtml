@@ -1,0 +1,58 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+<h1>Good day, Member Services</h1>
+<p class="lede">Internal console for branch and contact center staff. Member inquiries, account snapshots and background job status.</p>
+
+<div class="kpis">
+    <div class="kpi"><div class="v">@Model.Members.ToString("N0")</div><div class="l">Members on file</div></div>
+    <div class="kpi"><div class="v">@Model.LookupsToday.ToString("N0")</div><div class="l">Lookups today</div></div>
+    <div class="kpi"><div class="v">@Model.JobsToday.ToString("N0")</div><div class="l">Background jobs today</div></div>
+    <div class="kpi">
+        <div class="v">
+            <span class="tag @(Model.DbOk ? "ok" : "bad")">SQL @(Model.DbOk ? "up" : "down")</span>
+            <span class="tag @(Model.ColbyOk ? "ok" : "bad")">Colby @(Model.ColbyOk ? "up" : "down")</span>
+        </div>
+        <div class="l">Dependencies</div>
+    </div>
+</div>
+
+<div class="grid2">
+    <div class="card">
+        <h2 style="margin-top:0">Recent lookups</h2>
+        @if (Model.Recent.Count == 0)
+        {
+            <p class="lede">No lookups yet. <a asp-page="/Members">Find a member</a> to get started.</p>
+        }
+        else
+        {
+            <table>
+                <thead><tr><th>Member</th><th>When (UTC)</th><th>Served by</th></tr></thead>
+                <tbody>
+                @foreach (var l in Model.Recent)
+                {
+                    <tr>
+                        <td><a asp-page="/Member" asp-route-id="@l.MemberId">@l.MemberName</a> <span class="tag">@l.MemberId</span></td>
+                        <td>@l.LookedUpAt.ToString("HH:mm:ss")</td>
+                        <td><code>@l.Pod</code></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+    </div>
+    <div class="card">
+        <h2 style="margin-top:0">Quick lookup</h2>
+        <form method="get" asp-page="/Members" class="search">
+            <input type="text" name="q" placeholder="Last name, email or member number" autofocus />
+            <button type="submit">Search</button>
+        </form>
+        <p class="lede">Try <a asp-page="/Members" asp-route-q="Okafor">Okafor</a>, <a asp-page="/Members" asp-route-q="Camas">Camas</a> or member <a asp-page="/Member" asp-route-id="100201">100201</a>.</p>
+        <div class="callout">
+            This request was served by pod <code>@App.Pod</code> in namespace <code>@App.Namespace</code>. Refresh a few times and watch it alternate between replicas.
+        </div>
+    </div>
+</div>

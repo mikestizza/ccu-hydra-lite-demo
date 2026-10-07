@@ -1,0 +1,83 @@
+# SQL Server 2022 on Linux, standing in for WEBAPP / hydra-prod.
+# One replica with a persistent volume from the Nutanix CSI driver.
+apiVersion: v1
+kind: Service
+metadata:
+  name: hydra-db
+  labels:
+    app.kubernetes.io/name: hydra-db
+    app.kubernetes.io/part-of: hydra
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: hydra-db
+  ports:
+    - name: tds
+      port: 1433
+      targetPort: 1433
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hydra-db
+  labels:
+    app.kubernetes.io/name: hydra-db
+    app.kubernetes.io/part-of: hydra
+spec:
+  serviceName: hydra-db
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hydra-db
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hydra-db
+        app.kubernetes.io/part-of: hydra
+    spec:
+      securityContext:
+        fsGroup: 10001
+      containers:
+        - name: mssql
+          image: mcr.microsoft.com/mssql/server:2022-latest
+          ports:
+            - name: tds
+              containerPort: 1433
+          env:
+            - name: ACCEPT_EULA
+              value: "Y"
+            - name: MSSQL_PID
+              value: "Developer"
+            - name: MSSQL_SA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hydra-secret
+                  key: MSSQL_SA_PASSWORD
+          resources:
+            requests:
+              cpu: 500m
+              memory: 2Gi
+            limits:
+              cpu: "2"
+              memory: 3Gi
+          readinessProbe:
+            tcpSocket:
+              port: 1433
+            initialDelaySeconds: 15
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 1433
+            initialDelaySeconds: 60
+            periodSeconds: 15
+          volumeMounts:
+            - name: data
+              mountPath: /var/opt/mssql
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi

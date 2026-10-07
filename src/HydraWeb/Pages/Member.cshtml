@@ -1,0 +1,61 @@
+@page "{id:int}"
+@model MemberModel
+@{
+    ViewData["Title"] = Model.Member?.FullName ?? "Member";
+}
+
+@if (Model.Member is null)
+{
+    <h1>Member not found</h1>
+    <p class="lede">No member with number @Model.Id. <a asp-page="/Members">Back to search</a></p>
+}
+else
+{
+<h1>@Model.Member.FullName <span class="tag">@Model.Member.MemberId</span></h1>
+<p class="lede">@Model.Member.Branch branch, member since @Model.Member.JoinedOn.ToString("MMMM yyyy")</p>
+
+<div class="grid2">
+    <div class="card">
+        <h2 style="margin-top:0">Profile <span class="tag">SQL Server</span></h2>
+        <dl class="kv">
+            <dt>Email</dt><dd>@Model.Member.Email</dd>
+            <dt>Phone</dt><dd>@Model.Member.Phone</dd>
+            <dt>Branch</dt><dd>@Model.Member.Branch</dd>
+            <dt>Status</dt><dd><span class="tag @(Model.Member.Status == "Active" ? "ok" : Model.Member.Status == "Dormant" ? "warn" : "bad")">@Model.Member.Status</span></dd>
+            <dt>Member since</dt><dd>@Model.Member.JoinedOn.ToString("yyyy-MM-dd")</dd>
+        </dl>
+    </div>
+
+    <div class="card">
+        <h2 style="margin-top:0">Accounts <span class="tag">Colby API</span></h2>
+        @if (Model.Colby is { Ok: true, Data: not null })
+        {
+            <table>
+                <thead><tr><th>Account</th><th>Type</th><th class="num">Balance</th><th>Status</th></tr></thead>
+                <tbody>
+                @foreach (var a in Model.Colby.Data.Accounts)
+                {
+                    <tr>
+                        <td><code>@a.AccountId</code></td>
+                        <td>@a.Type</td>
+                        <td class="num">@(a.Balance < 0 ? "-" : "")$@Math.Abs(a.Balance).ToString("N2")</td>
+                        <td><span class="tag @(a.Status is "Open" or "Current" ? "ok" : "warn")">@a.Status</span></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+            <div class="callout" style="margin-bottom:0">
+                Fetched in @Model.Colby.ElapsedMs ms from <code>@Model.Colby.Target</code><br />
+                Served by Colby pod <code>@Model.Colby.Data.ServedBy</code>, which saw the call arrive from <code>@Model.Colby.Data.CallerIp</code> (this web pod's cluster IP). This hop never left the cluster network.
+            </div>
+        }
+        else
+        {
+            <div class="callout bad" style="margin-bottom:0">
+                Colby API unreachable at <code>@Model.Colby?.Target</code><br />
+                <small>@Model.Colby?.Error</small>
+            </div>
+        }
+    </div>
+</div>
+}

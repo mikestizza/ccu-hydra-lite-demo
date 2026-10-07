@@ -1,0 +1,36 @@
+@page
+@model JobsModel
+@{
+    ViewData["Title"] = "Background Jobs";
+}
+
+<h1>Background Jobs</h1>
+<p class="lede">In-process scheduled work, the way Hangfire runs inside the Hydra web process today. Every replica runs the scheduler; results are written to SQL so all replicas share one history.</p>
+
+@if (Model.Error is not null)
+{
+    <div class="callout bad">@Model.Error</div>
+}
+else if (Model.Runs.Count == 0)
+{
+    <p class="lede">No job runs recorded yet. The first run starts about 20 seconds after a pod boots.</p>
+}
+else
+{
+    <table>
+        <thead><tr><th>#</th><th>Job</th><th>Started (UTC)</th><th class="num">Duration</th><th>Status</th><th>Ran on pod</th></tr></thead>
+        <tbody>
+        @foreach (var j in Model.Runs)
+        {
+            <tr>
+                <td>@j.Id</td>
+                <td>@j.JobName</td>
+                <td>@j.StartedAt.ToString("HH:mm:ss")</td>
+                <td class="num">@j.DurationMs ms</td>
+                <td><span class="tag @(j.Status == "Succeeded" ? "ok" : "warn")">@j.Status</span></td>
+                <td><code>@j.Pod</code></td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}

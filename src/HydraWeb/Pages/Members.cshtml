@@ -1,0 +1,45 @@
+@page
+@model MembersModel
+@{
+    ViewData["Title"] = "Members";
+}
+
+<h1>Members</h1>
+<p class="lede">Search the member master (SQL Server). Select a member to pull live account data from the Colby API.</p>
+
+<form method="get" class="search">
+    <input type="text" name="q" value="@Model.Q" placeholder="Last name, email, branch or member number" autofocus />
+    <button type="submit">Search</button>
+</form>
+
+@if (Model.Error is not null)
+{
+    <div class="callout bad">@Model.Error</div>
+}
+else if (Model.Results.Count == 0)
+{
+    <p class="lede">No members matched "@Model.Q".</p>
+}
+else
+{
+    <table>
+        <thead>
+            <tr><th>Member #</th><th>Name</th><th>Email</th><th>Phone</th><th>Branch</th><th>Member since</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+        @foreach (var m in Model.Results)
+        {
+            <tr>
+                <td><a asp-page="/Member" asp-route-id="@m.MemberId">@m.MemberId</a></td>
+                <td><a asp-page="/Member" asp-route-id="@m.MemberId">@m.FullName</a></td>
+                <td>@m.Email</td>
+                <td>@m.Phone</td>
+                <td>@m.Branch</td>
+                <td>@m.JoinedOn.ToString("MMM yyyy")</td>
+                <td><span class="tag @(m.Status == "Active" ? "ok" : m.Status == "Dormant" ? "warn" : "bad")">@m.Status</span></td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    <p class="lede" style="margin-top:10px">@Model.Results.Count result(s)</p>
+}

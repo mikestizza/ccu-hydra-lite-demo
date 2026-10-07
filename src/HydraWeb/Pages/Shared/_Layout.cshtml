@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@(ViewData["Title"] is string t ? t + " | " : "")Hydra</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <style>:root { --accent: @App.Accent; }</style>
+</head>
+<body>
+@if (!string.IsNullOrWhiteSpace(App.Banner))
+{
+    <div class="banner">@App.Banner</div>
+}
+<header class="topbar">
+    <div class="wrap">
+        <a class="brand" asp-page="/Index">
+            <span class="mark">H</span>
+            <span class="name">Hydra</span>
+            <span class="sub">Member Services Console</span>
+        </a>
+        <nav>
+            <a asp-page="/Index">Dashboard</a>
+            <a asp-page="/Members">Members</a>
+            <a asp-page="/Jobs">Background Jobs</a>
+            <a asp-page="/Platform">Platform</a>
+        </nav>
+        <div class="envpill" title="Hydra:Environment">@App.Environment</div>
+    </div>
+</header>
+
+<main class="wrap">
+    @RenderBody()
+</main>
+
+<footer class="wrap foot">
+    <span>pod <code>@App.Pod</code></span>
+    <span>ns <code>@App.Namespace</code></span>
+    <span>build <code>@App.Version</code></span>
+    <span>sha <code>@App.GitSha</code></span>
+    <span>up @App.Uptime</span>
+</footer>
+</body>
+</html>

@@ -1,0 +1,27 @@
+# Flux reconciles deploy/envs/prod into the `hydra` namespace.
+# One file like this per environment. CI writes one for each feature branch
+# and removes it when the branch is deleted; Flux prunes the namespace.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: hydra-prod
+  # namespace is set by the root Kustomization's targetNamespace
+  labels:
+    app.kubernetes.io/part-of: hydra
+    hydra.ccu/env: prod
+spec:
+  interval: 1m
+  retryInterval: 30s
+  timeout: 5m
+  prune: true
+  wait: false
+  sourceRef:
+    kind: GitRepository
+    name: hydra-lite
+  path: ./deploy/envs/prod
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: hydra-cluster-vars
+      - kind: Secret
+        name: hydra-secrets

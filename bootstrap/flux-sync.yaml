@@ -1,0 +1,53 @@
+# Flux objects that connect the cluster to this repository.
+# Apply once (bootstrap.sh does it). Everything else is pulled from Git.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hydra-system
+  labels:
+    app.kubernetes.io/part-of: hydra
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: hydra-lite
+  namespace: hydra-system
+spec:
+  interval: 30s
+  url: https://github.com/mikestizza/ccu-hydra-lite-demo
+  ref:
+    branch: main
+---
+# Root: applies every Flux Kustomization under deploy/flux/envs (one per environment).
+# Adding a file there creates an environment; removing it prunes one.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: hydra-envs
+  namespace: hydra-system
+spec:
+  interval: 1m
+  prune: true
+  wait: false
+  sourceRef:
+    kind: GitRepository
+    name: hydra-lite
+  path: ./deploy/flux/envs
+  targetNamespace: hydra-system
+---
+# Platform policy (Gatekeeper constraints) for hydra-managed namespaces.
+# Separate from the apps so a missing Gatekeeper never blocks an app rollout.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: hydra-policy
+  namespace: hydra-system
+spec:
+  interval: 5m
+  prune: true
+  wait: true
+  timeout: 2m
+  sourceRef:
+    kind: GitRepository
+    name: hydra-lite
+  path: ./deploy/policy
