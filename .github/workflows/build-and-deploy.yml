@@ -159,8 +159,6 @@ jobs:
                 - Hydra__Environment=${SLUG}
                 - "Hydra__Banner=Ephemeral environment for branch '${BRANCH}' (${TAG}). Deleted when the branch is."
                 - "Hydra__Accent=#7a2e8e"
-          generatorOptions:
-            disableNameSuffixHash: true
           patches:
             - target:
                 kind: Ingress

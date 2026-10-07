@@ -14,7 +14,5 @@ configMapGenerator:
     behavior: merge
     literals:
       - Hydra__Environment=Production
-      - Hydra__Banner=
+      - "Hydra__Banner=Scheduled maintenance: online banking sync paused Sat 10 PM to midnight PT"
       - "Hydra__Accent=#0f2a5a"
-generatorOptions:
-  disableNameSuffixHash: true

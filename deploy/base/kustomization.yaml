@@ -19,7 +19,8 @@ configMapGenerator:
       - ColbyApi__BaseUrl=http://colby-api
       - Hydra__DbHost=hydra-db
       - Hydra__DbName=Hydra
+# ConfigMap names carry a content hash, so changing a value in Git changes the
+# Deployment's reference and Flux rolls the pods. No image rebuild for a config change.
 generatorOptions:
-  disableNameSuffixHash: true
   labels:
     app.kubernetes.io/part-of: hydra

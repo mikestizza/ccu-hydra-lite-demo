@@ -26,8 +26,6 @@ configMapGenerator:
       - Hydra__Environment=Project
       - "Hydra__Banner=Deployed by the Hydra team through the NKP project 'hydra-lite' (Continuous Deployment tab). Secrets came from the project's Secrets tab, not Git."
       - "Hydra__Accent=#0b6e6e"
-generatorOptions:
-  disableNameSuffixHash: true
 patches:
   # The project namespace already exists and is owned by Kommander.
   - patch: |-
