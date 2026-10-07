@@ -6,9 +6,9 @@ resources:
   - ../../base
 images:
   - name: ghcr.io/mikestizza/hydra-web
-    newTag: main-e0b0c47
+    newTag: main-48e6ec5
   - name: ghcr.io/mikestizza/colby-api
-    newTag: main-e0b0c47
+    newTag: main-48e6ec5
 configMapGenerator:
   - name: hydra-config
     behavior: merge
