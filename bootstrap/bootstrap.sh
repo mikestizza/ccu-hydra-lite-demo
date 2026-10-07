@@ -15,9 +15,27 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-: "${INGRESS_DOMAIN:?Set INGRESS_DOMAIN, e.g. INGRESS_DOMAIN=10.38.207.150.sslip.io (the Traefik LoadBalancer IP + .sslip.io)}"
-INGRESS_CLASS="${INGRESS_CLASS:-kommander-traefik}"
 NS=hydra-system
+
+# Auto-detect the Traefik LoadBalancer address and ingress class when not given.
+if [ -z "${INGRESS_DOMAIN:-}" ]; then
+  TRAEFIK_IP=$(kubectl get svc -A -o json 2>/dev/null | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+for s in d["items"]:
+    if "traefik" in s["metadata"]["name"] and s["spec"].get("type")=="LoadBalancer":
+        ing=s["status"].get("loadBalancer",{}).get("ingress",[])
+        if ing: print(ing[0].get("ip") or ing[0].get("hostname")); break
+' 2>/dev/null || true)
+  [ -n "$TRAEFIK_IP" ] || { echo "Could not detect the Traefik LoadBalancer IP. Set INGRESS_DOMAIN=<ip>.sslip.io and re-run."; exit 1; }
+  INGRESS_DOMAIN="${TRAEFIK_IP}.sslip.io"
+  echo "== Detected Traefik at $TRAEFIK_IP, using INGRESS_DOMAIN=$INGRESS_DOMAIN"
+fi
+if [ -z "${INGRESS_CLASS:-}" ]; then
+  INGRESS_CLASS=$(kubectl get ingressclass -o jsonpath='{.items[?(@.spec.controller=="traefik.io/ingress-controller")].metadata.name}' 2>/dev/null | awk '{print $1}')
+  INGRESS_CLASS="${INGRESS_CLASS:-kommander-traefik}"
+  echo "== Using ingress class $INGRESS_CLASS"
+fi
 
 echo "== Checking cluster and Flux CRDs"
 kubectl cluster-info | head -1
