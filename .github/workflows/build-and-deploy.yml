@@ -132,9 +132,11 @@ jobs:
           git config user.email "hydra-ci@users.noreply.github.com"
 
           if [ "$BRANCH" = "main" ]; then
-            echo "Promoting $TAG to prod"
-            sed -i -E "/name: ghcr.io\/${OWNER}\/(hydra-web|colby-api)/{n;s/newTag: .*/newTag: ${TAG}/}" deploy/envs/prod/kustomization.yaml
-            MSG="ci: promote ${TAG} to prod"
+            echo "Promoting $TAG to prod and the NKP project overlay"
+            for f in deploy/envs/prod/kustomization.yaml deploy/envs/project/kustomization.yaml; do
+              sed -i -E "/name: ghcr.io\/${OWNER}\/(hydra-web|colby-api)/{n;s/newTag: .*/newTag: ${TAG}/}" "$f"
+            done
+            MSG="ci: promote ${TAG} to prod + project"
           else
             echo "Creating/updating ephemeral env hydra-${SLUG}"
             mkdir -p "deploy/envs/${SLUG}"

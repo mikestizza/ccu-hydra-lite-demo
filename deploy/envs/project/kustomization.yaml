@@ -1,0 +1,55 @@
+# Overlay for the NKP (Kommander) Project "hydra-lite".
+#
+# Added through the project's Continuous Deployment tab as a GitOps Source with
+# path ./deploy/envs/project. Kommander deploys it into the project namespace
+# under a project-scoped service account, so this overlay:
+#   - does not create a Namespace (Kommander owns the project namespace)
+#   - does not create the Secret (it is created in the project's Secrets tab,
+#     name hydra-secret, keys MSSQL_SA_PASSWORD and ConnectionStrings__Hydra)
+#   - hardcodes the ingress host and class (no Flux variable substitution here)
+#
+# CI updates the image tags below on every merge to main, same as prod.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: hydra-lite-6mg6s
+resources:
+  - ../../base
+images:
+  - name: ghcr.io/mikestizza/hydra-web
+    newTag: main-a74cc97
+  - name: ghcr.io/mikestizza/colby-api
+    newTag: main-a74cc97
+configMapGenerator:
+  - name: hydra-config
+    behavior: merge
+    literals:
+      - Hydra__Environment=Project
+      - "Hydra__Banner=Deployed by the Hydra team through the NKP project 'hydra-lite' (Continuous Deployment tab). Secrets came from the project's Secrets tab, not Git."
+      - "Hydra__Accent=#0b6e6e"
+generatorOptions:
+  disableNameSuffixHash: true
+patches:
+  # The project namespace already exists and is owned by Kommander.
+  - patch: |-
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: hydra
+      $patch: delete
+  # Secret is created in the UI, never in Git.
+  - patch: |-
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: hydra-secret
+      $patch: delete
+  - target:
+      kind: Ingress
+      name: hydra-web
+    patch: |-
+      - op: replace
+        path: /spec/ingressClassName
+        value: kommander-traefik
+      - op: replace
+        path: /spec/rules/0/host
+        value: hydra-project.10.38.207.251.sslip.io
