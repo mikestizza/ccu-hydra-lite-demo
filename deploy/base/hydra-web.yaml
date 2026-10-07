@@ -38,6 +38,7 @@ spec:
         app.kubernetes.io/name: hydra-web
         app.kubernetes.io/part-of: hydra
     spec:
+      serviceAccountName: hydra-web
       securityContext:
         runAsNonRoot: true
         seccompProfile:

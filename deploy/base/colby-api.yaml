@@ -34,6 +34,7 @@ spec:
         app.kubernetes.io/name: colby-api
         app.kubernetes.io/part-of: hydra
     spec:
+      serviceAccountName: colby-api
       securityContext:
         runAsNonRoot: true
         seccompProfile:

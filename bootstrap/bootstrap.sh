@@ -51,7 +51,7 @@ if kubectl -n "$NS" get secret hydra-secrets >/dev/null 2>&1 && [ -z "${SQL_SA_P
 else
   if [ -z "${SQL_SA_PASSWORD:-}" ]; then
     # SQL Server wants 8+ chars with upper, lower, digit and symbol.
-    SQL_SA_PASSWORD="Hy$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 18)!9"
+    SQL_SA_PASSWORD=$(python3 -c 'import secrets,string; a=string.ascii_letters+string.digits; print("Hy"+"".join(secrets.choice(a) for _ in range(18))+"!9")')
     echo "   generated a random SA password (stored only in the cluster Secret)"
   fi
   kubectl -n "$NS" create secret generic hydra-secrets \

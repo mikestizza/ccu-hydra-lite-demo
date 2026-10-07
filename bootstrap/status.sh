@@ -27,9 +27,10 @@ for ns in $(kubectl get ns -l hydra.ccu/managed=true -o jsonpath='{.items[*].met
   kubectl -n "$ns" logs deploy/hydra-web --tail=6 2>/dev/null | sed 's/^/   /'
 done
 
-hr "gatekeeper constraints"
-kubectl get constrainttemplates 2>/dev/null | sed 's/^/   /'
-kubectl get hydrarequiredlimits,hydradisallowlatest 2>/dev/null | sed 's/^/   /'
+hr "gatekeeper constraints (all, including cluster defaults)"
+kubectl get constraints 2>/dev/null | sed 's/^/   /'
+echo "   -- recent denials"
+kubectl get events -A --field-selector reason=FailedAdmission 2>/dev/null | tail -5 | sed 's/^/   /'
 
 hr "urls"
 DOMAIN=$(kubectl -n hydra-system get cm hydra-cluster-vars -o jsonpath='{.data.INGRESS_DOMAIN}' 2>/dev/null)
