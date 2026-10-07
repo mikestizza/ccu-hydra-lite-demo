@@ -35,8 +35,9 @@ spec:
   path: ./deploy/flux/envs
   targetNamespace: hydra-system
 ---
-# Platform policy (Gatekeeper constraints) for hydra-managed namespaces.
-# Separate from the apps so a missing Gatekeeper never blocks an app rollout.
+# Platform policy (Gatekeeper) for hydra-managed namespaces, in two steps:
+# templates first (Gatekeeper turns each into a CRD), then the constraints
+# that use them. Separate from the apps so policy never blocks an app rollout.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -50,4 +51,22 @@ spec:
   sourceRef:
     kind: GitRepository
     name: hydra-lite
-  path: ./deploy/policy
+  path: ./deploy/policy/templates
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: hydra-policy-constraints
+  namespace: hydra-system
+spec:
+  dependsOn:
+    - name: hydra-policy
+  interval: 5m
+  retryInterval: 20s
+  prune: true
+  wait: true
+  timeout: 2m
+  sourceRef:
+    kind: GitRepository
+    name: hydra-lite
+  path: ./deploy/policy/constraints

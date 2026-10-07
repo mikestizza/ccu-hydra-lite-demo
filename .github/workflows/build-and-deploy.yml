@@ -106,7 +106,7 @@ jobs:
           for d in deploy/envs/*/ ; do
             echo "== $d"; kustomize build "$d" | grep -c '^kind:'
           done
-          echo "== deploy/policy"; kustomize build deploy/policy | grep -c '^kind:'
+          for d in deploy/policy/templates deploy/policy/constraints; do echo "== $d"; kustomize build "$d" | grep -c "^kind:"; done
           echo "all manifests build"
 
   # ---------------------------------------------------------------- promote

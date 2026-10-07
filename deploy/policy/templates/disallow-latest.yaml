@@ -33,19 +33,3 @@ spec:
           not contains(c.image, "@")
           msg := sprintf("Policy: container <%v> uses untagged image <%v>; pin a tag or digest (Hydra platform standard)", [c.name, c.image])
         }
----
-apiVersion: constraints.gatekeeper.sh/v1beta1
-kind: HydraDisallowLatest
-metadata:
-  name: hydra-images-must-be-pinned
-spec:
-  enforcementAction: deny
-  match:
-    kinds:
-      - apiGroups: ["apps"]
-        kinds: ["Deployment", "StatefulSet", "DaemonSet"]
-      - apiGroups: [""]
-        kinds: ["Pod"]
-    namespaceSelector:
-      matchLabels:
-        hydra.ccu/managed: "true"

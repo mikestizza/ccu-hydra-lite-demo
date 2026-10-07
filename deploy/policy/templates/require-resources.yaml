@@ -33,19 +33,3 @@ spec:
           not c.resources.limits.memory
           msg := sprintf("Policy: container <%v> must set resources.limits.memory (Hydra platform standard)", [c.name])
         }
----
-apiVersion: constraints.gatekeeper.sh/v1beta1
-kind: HydraRequiredLimits
-metadata:
-  name: hydra-containers-must-have-limits
-spec:
-  enforcementAction: deny
-  match:
-    kinds:
-      - apiGroups: ["apps"]
-        kinds: ["Deployment", "StatefulSet", "DaemonSet"]
-      - apiGroups: [""]
-        kinds: ["Pod"]
-    namespaceSelector:
-      matchLabels:
-        hydra.ccu/managed: "true"
