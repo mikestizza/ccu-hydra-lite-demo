@@ -6,25 +6,34 @@ Fill in before the session:
 
 | Item | Value |
 |---|---|
-| Workload cluster | `________` |
-| Traefik LB / INGRESS_DOMAIN | `________.sslip.io` |
-| Prod URL | `http://hydra.<domain>/` |
-| Kommander dashboard | https://nkp-ultimate.nkpdemo.com/dkp/kommander/dashboard |
-| Grafana (workload cluster) | `________` |
-| Kubecost | `________` |
+| Workload cluster | `stizlab` (workspace `stizlab-w966n`, 3 control plane + 4 workers, Ubuntu 24.04, K8s 1.34, Cilium) |
+| Traefik LB / INGRESS_DOMAIN | `10.38.207.251.sslip.io` |
+| Prod URL (platform GitOps, ns `hydra`) | http://hydra.10.38.207.251.sslip.io/ |
+| Project URL (Kommander project CD, ns `hydra-lite-6mg6s`) | http://hydra-project.10.38.207.251.sslip.io/ |
+| Kommander project | https://nkp-ultimate.nkpdemo.com/dkp/kommander/dashboard/workspace/stizlab-w966n/projects/hydra-lite-6mg6s/cd |
+| Grafana / OpenCost | Kommander → Workspace `StizLab` → Applications → open Grafana and OpenCost dashboards (fill exact links the morning of) |
 | Repo | https://github.com/mikestizza/ccu-hydra-lite-demo |
 | Actions | https://github.com/mikestizza/ccu-hydra-lite-demo/actions |
+| Branches (for the live delete) | https://github.com/mikestizza/ccu-hydra-lite-demo/branches |
 
-Have open in tabs before you start: prod URL (Dashboard page), the repo, Actions, Kommander, Grafana, a terminal with `KUBECONFIG` set and `watch kubectl -n hydra get pods` running.
+Jumphost: `nkp-boot`, `export KUBECONFIG=~/stizlab.conf`, repo cloned at `~/ccu-hydra-lite-demo` (run `git pull` the morning of).
+
+Note: https works too (Traefik default cert, browser will warn). If a browser auto-upgrades to https and shows a cert warning, click through or type http:// explicitly.
+
+Have open in tabs before you start: prod URL (Dashboard page), project URL, the repo, Actions, the Kommander project page, Grafana, and a terminal on the jumphost with `KUBECONFIG` set and `watch -n 2 'kubectl get pods -n hydra; echo; kubectl get ns | grep hydra-'` running.
+
+Rehearsed 10/7: every beat below was run against stizlab and worked. Timings are from that run.
 
 ---
 
 ## 0. Pre-flight (morning of)
 
 ```bash
+cd ~/ccu-hydra-lite-demo && git pull
 ./bootstrap/status.sh            # everything Ready, pods Running, URLs answer
-kubectl get ns | grep hydra-     # no leftover ephemeral namespaces from rehearsal
+kubectl get ns | grep hydra-     # expect only hydra-lite-6mg6s and hydra-system
 git branch -r | grep -v main     # no leftover branches
+kubectl -n hydra-lite-6mg6s get pods   # project path healthy too
 ```
 
 If an ephemeral env is left over: `git push origin --delete <branch>` and wait a minute.
@@ -60,9 +69,8 @@ Browser: Members, search "Okafor", click a member.
 - Terminal:
   ```bash
   kubectl apply -f deploy/demo/netpol-probes.yaml
-  sleep 8
-  kubectl -n hydra logs probe-allowed       # RESULT: HTTP 200
-  kubectl -n intruder logs probe-denied     # RESULT: BLOCKED by NetworkPolicy (timeout)
+  kubectl -n hydra logs -f probe-allowed       # RESULT: HTTP 200 in 0.004s  (rehearsal: 4 ms)
+  kubectl -n intruder logs -f probe-denied     # RESULT: BLOCKED by NetworkPolicy (timeout)  (takes ~6 s)
   kubectl delete -f deploy/demo/netpol-probes.yaml
   ```
   Same image, same command. Only the label and namespace differ. Troy's moment.
@@ -77,11 +85,11 @@ git checkout -b feature/member-alerts
 git commit -am "Member alerts preview" && git push -u origin feature/member-alerts
 ```
 
-- Actions tab: build runs (about 2 min with cache). Narrate while it builds: "CI builds the image, tags it with the branch and commit, then writes a tiny overlay into the repo. Nobody logs into a server."
+- Actions tab: build runs (rehearsal: about 90 s with cache, namespace Running ~2 min after push). Narrate while it builds: "CI builds the image, tags it with the branch and commit, then writes a tiny overlay into the repo. Nobody logs into a server."
 - Repo: show the CI commit adding `deploy/envs/feature-member-alerts/` and `deploy/flux/envs/feature-member-alerts.yaml`.
 - Terminal: `kubectl get ns | grep hydra-` and `kubectl -n hydra-feature-member-alerts get pods` (SQL Server takes ~40s).
 - Browser: `http://hydra-feature-member-alerts.<domain>/` next to prod. Purple header, yellow banner, changed title. Own SQL Server, own data.
-- "Delete the branch, the namespace goes away." `git push origin --delete feature/member-alerts`. Show the teardown Action and `kubectl get ns` a minute later (or come back to it at the end).
+- "Delete the branch, the namespace goes away." Delete it on the Branches page (trash icon) or `git push origin --delete feature/member-alerts`. Show the `teardown` Action and `kubectl get ns | grep hydra-` a minute later (or come back to it at the end).
 
 Jesse's moment. Tie back: "This is the PR preview you said you wanted and only have with Vercel today."
 
@@ -103,19 +111,24 @@ If time is short, skip this and describe it; step 4 already proved the pipeline.
 ## 6. Day 2 in Kommander (7 min)
 
 - **Grafana**: namespace `hydra` dashboard: CPU, memory, pod restarts, network. Point out the ephemeral namespace showed up with zero config.
-- **Kubecost**: cost by namespace. "The throwaway branch environment cost X cents. You can see what Hydra costs to run."
+- **OpenCost** (NKP's cost tool on this build): cost by namespace. "The throwaway branch environment cost cents. You can see what Hydra costs to run."
 - **Gatekeeper**:
   ```bash
   kubectl apply -f deploy/demo/bad-deployment.yaml
   ```
-  Expected: admission webhook denied, two messages (no resource limits, `:latest` tag). "Policy as code, in Git, reviewed like code. That answers 'who writes these and who reviews them'."
-  Show `deploy/policy/` in the repo.
-- **Flux UI** in Kommander (Continuous Deployment): show the hydra-lite GitRepository and the Kustomizations reconciling.
+  Expected (verified): `admission webhook "validation.gatekeeper.sh" denied the request` with three lines: must set `resources.limits.cpu`, must set `resources.limits.memory`, `:latest` not allowed. "Policy as code, in Git, reviewed like code. That answers 'who writes these and who reviews them'."
+  Show `deploy/policy/templates` and `deploy/policy/constraints` in the repo.
+- **The NKP Project** (`hydra-lite`): this is the app team's view. Walk the tabs:
+  - Continuous Deployment: the `hydra-lite` GitOps source pointing at `./deploy/envs/project`. "The Hydra team added this themselves, in the UI, no cluster-admin."
+  - Secrets: `hydra-secret`, one key, created in the UI. Git never saw it.
+  - Network Policies: `colby-api-ingress` shows up here automatically.
+  - Quotas & Limit Ranges: where the platform team caps what a project can consume.
+  Two GitOps paths from one repo: platform team owns `hydra-system` (prod, ephemeral envs, policy); app team owns their project. Same images, same manifests.
 - Edition call-out: Grafana/Prometheus, Flux, Kubecost and Gatekeeper are all **Pro**. Fleet/multi-cluster is Ultimate. "You'd be a Pro shop."
 
 ## 7. Config and secrets (2 min, talk track)
 
-- Platform page: SQL target and connection string source. "The password isn't in Git and isn't in the image. Flux substitutes it from a cluster Secret at apply time."
+- Platform page: SQL target and connection string source. "The only secret the app needs is the SQL password. In prod Flux substitutes it from a cluster Secret at apply time; in the project it came from the Secrets tab. Either way Git only has a placeholder."
 - Repo: `deploy/base/config.yaml` with `${SQL_SA_PASSWORD}`.
 - "In production, External Secrets Operator fills that Secret from AWS Parameter Store today, or Azure Key Vault when you move. Your cloud direction doesn't block any of this."
 
@@ -145,3 +158,6 @@ Open the floor.
 | Flux not reconciling | `kubectl -n hydra-system get kustomizations`; `flux reconcile source git hydra-lite -n hydra-system` if flux CLI present, else `kubectl -n hydra-system annotate gitrepository hydra-lite reconcile.fluxcd.io/requestedAt="$(date +%s)" --overwrite` |
 | Ephemeral env slow | SQL Server pull + start is ~60s first time per node. Narrate the Actions run meanwhile. |
 | Gatekeeper not installed | Skip step 6c, show the policy files and describe. |
+| Project CD source red | Check `kubectl -n hydra-lite-6mg6s get kustomizations hydra-lite -o yaml | grep -A3 message`. Prod path is independent, keep going. |
+| Can't delete branch from jumphost | Use the GitHub Branches page trash icon. |
+| Lost the SQL password for the project ns | Edit the secret in the project's Secrets tab and `kubectl -n hydra-lite-6mg6s delete pod hydra-db-0` so SQL Server picks it up (new DB, re-seeds). |
