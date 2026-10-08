@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
 # Erase everything Hydra-lite put on the cluster. Back to "cluster just deployed".
-# Safe to re-run. Does not touch the Kommander project namespace (hydra-lite-*);
-# remove its GitOps source in the Kommander UI if you want that empty too.
+# Safe to re-run. Empties, but never deletes, the Kommander project namespace (hydra-lite-6mg6s).
+# Run it once per cluster:
+#   KUBECONFIG=~/stizlab.conf  ./bootstrap/reset.sh
+#   KUBECONFIG=~/stizlab2.conf ./bootstrap/reset.sh   (only the fleet step finds anything here)
 set -uo pipefail
 
 echo "== 1. Flux objects (deleting a Kustomization with prune:true garbage-collects what it applied)"
 kubectl -n hydra-system delete kustomization hydra-policy-constraints hydra-policy hydra-prod hydra-envs --ignore-not-found --wait=true --timeout=120s
 kubectl -n hydra-system delete gitrepository hydra-lite --ignore-not-found
+
+echo "== 1b. Multi-cluster fleet hookup in the project namespace (prune removes the app it deployed)"
+kubectl -n hydra-lite-6mg6s delete kustomization hydra-lite-fleet --ignore-not-found --wait=true --timeout=120s
+kubectl -n hydra-lite-6mg6s delete gitrepository hydra-lite-fleet --ignore-not-found
 
 echo "== 2. Namespaces"
 kubectl delete ns hydra-system hydra intruder --ignore-not-found --wait=true --timeout=180s
