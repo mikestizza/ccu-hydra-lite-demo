@@ -61,4 +61,4 @@ hr "existing hydra objects (should be empty before bootstrap)"
 kubectl get ns 2>/dev/null | grep -E '^hydra' | sed 's/^/   /' || echo "   none"
 
 echo
-echo "Preflight done. Paste everything above back to Claude."
+echo "Preflight done."

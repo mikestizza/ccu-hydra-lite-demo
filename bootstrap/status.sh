@@ -39,4 +39,4 @@ for ns in $(kubectl get ns -l hydra.ccu/managed=true -o jsonpath='{.items[*].met
   [ -n "$H" ] && echo "   $ns  ->  http://$H/"
 done
 echo
-echo "Status done. Paste everything above back to Claude."
+echo "Status done."
