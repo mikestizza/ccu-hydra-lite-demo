@@ -1,0 +1,35 @@
+# Gatekeeper: images in hydra-managed namespaces must be pinned. No :latest and
+# no untagged images. Patching is a deliberate tag bump in Git, not a surprise.
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: hydradisallowlatest
+spec:
+  crd:
+    spec:
+      names:
+        kind: HydraDisallowLatest
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package hydradisallowlatest
+
+        containers[c] {
+          c := input.review.object.spec.template.spec.containers[_]
+        }
+        containers[c] {
+          c := input.review.object.spec.containers[_]
+        }
+
+        violation[{"msg": msg}] {
+          c := containers[_]
+          endswith(c.image, ":latest")
+          msg := sprintf("Policy: container <%v> uses image <%v>; the :latest tag is not allowed (Hydra platform standard)", [c.name, c.image])
+        }
+
+        violation[{"msg": msg}] {
+          c := containers[_]
+          not contains(c.image, ":")
+          not contains(c.image, "@")
+          msg := sprintf("Policy: container <%v> uses untagged image <%v>; pin a tag or digest (Hydra platform standard)", [c.name, c.image])
+        }

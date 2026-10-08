@@ -1,0 +1,31 @@
+# Layer 8: the front door. Traefik (the ingress controller NKP ships) terminates TLS
+# and routes by hostname to the hydra-web Service. Traefik itself sits behind a
+# MetalLB LoadBalancer IP, 10.38.207.251, handed out from the pool the cluster got
+# at creation. That IP is what the F5 or Fortinet VIP forwards to.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hydra-web
+  namespace: hydra
+  labels:
+    app.kubernetes.io/name: hydra-web
+    app.kubernetes.io/part-of: hydra
+spec:
+  ingressClassName: kommander-traefik
+  # No secretName: Traefik serves its default certificate, so https works on
+  # the lab. In production this is a cert-manager Certificate or the Fortinet
+  # terminating TLS in front.
+  tls:
+    - hosts:
+        - hydra.10.38.207.251.sslip.io
+  rules:
+    - host: hydra.10.38.207.251.sslip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hydra-web
+                port:
+                  name: http

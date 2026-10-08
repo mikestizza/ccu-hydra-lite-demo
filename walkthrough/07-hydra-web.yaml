@@ -1,0 +1,94 @@
+# Layer 7: the web tier. Two replicas, like WEB01 and WEB02, except these are cattle.
+# Config and the secret arrive as environment variables (envFrom). Readiness is
+# /readyz, which only answers 200 once SQL is reachable, so the Service never sends
+# traffic to a pod that isn't ready. Rolling update: max unavailable 0, surge 1.
+apiVersion: v1
+kind: Service
+metadata:
+  name: hydra-web
+  namespace: hydra
+  labels:
+    app.kubernetes.io/name: hydra-web
+    app.kubernetes.io/part-of: hydra
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: hydra-web
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hydra-web
+  namespace: hydra
+  labels:
+    app.kubernetes.io/name: hydra-web
+    app.kubernetes.io/part-of: hydra
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hydra-web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hydra-web
+        app.kubernetes.io/part-of: hydra
+    spec:
+      serviceAccountName: hydra-web
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: hydra-web
+          image: ghcr.io/mikestizza/hydra-web:main
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: hydra-config
+            - secretRef:
+                name: hydra-secret
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          resources:
+            requests:
+              cpu: 100m
+              memory: 160Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]

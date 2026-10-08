@@ -1,0 +1,34 @@
+# Layer 9b: the constraints. Each one says: enforce this template, deny on violation,
+# in namespaces labeled hydra.ccu/managed=true. Apply after the templates have
+# turned into CRDs (kubectl get crd | grep hydra).
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: HydraRequiredLimits
+metadata:
+  name: hydra-containers-must-have-limits
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: ["apps"]
+        kinds: ["Deployment", "StatefulSet", "DaemonSet"]
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    namespaceSelector:
+      matchLabels:
+        hydra.ccu/managed: "true"
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: HydraDisallowLatest
+metadata:
+  name: hydra-images-must-be-pinned
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: ["apps"]
+        kinds: ["Deployment", "StatefulSet", "DaemonSet"]
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    namespaceSelector:
+      matchLabels:
+        hydra.ccu/managed: "true"

@@ -1,0 +1,17 @@
+# Layer 3: non-secret configuration. Environment variables the app reads.
+# Same image in every environment; this is what makes it "production".
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hydra-config
+  namespace: hydra
+  labels:
+    app.kubernetes.io/part-of: hydra
+data:
+  Hydra__Environment: "Production"
+  Hydra__Banner: "Scheduled maintenance: online banking sync paused Sat 10 PM to midnight PT"
+  Hydra__Accent: "#0f2a5a"
+  Hydra__JobIntervalSeconds: "45"
+  ColbyApi__BaseUrl: "http://colby-api"
+  Hydra__DbHost: "hydra-db"
+  Hydra__DbName: "Hydra"

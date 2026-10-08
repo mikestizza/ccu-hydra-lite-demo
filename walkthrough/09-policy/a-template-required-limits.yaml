@@ -1,0 +1,38 @@
+# Layer 9a: Gatekeeper ConstraintTemplates. Each becomes a new resource kind on the
+# cluster. The Rego inside is the rule. These two: containers must declare CPU and
+# memory limits; images must be pinned (no :latest, no untagged).
+# Gatekeeper: every container in a hydra-managed namespace must declare CPU and
+# memory limits. Based on the gatekeeper-library "containerlimits" template,
+# trimmed to the check that matters for the demo.
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: hydrarequiredlimits
+spec:
+  crd:
+    spec:
+      names:
+        kind: HydraRequiredLimits
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package hydrarequiredlimits
+
+        containers[c] {
+          c := input.review.object.spec.template.spec.containers[_]
+        }
+        containers[c] {
+          c := input.review.object.spec.containers[_]
+        }
+
+        violation[{"msg": msg}] {
+          c := containers[_]
+          not c.resources.limits.cpu
+          msg := sprintf("Policy: container <%v> must set resources.limits.cpu (Hydra platform standard)", [c.name])
+        }
+
+        violation[{"msg": msg}] {
+          c := containers[_]
+          not c.resources.limits.memory
+          msg := sprintf("Policy: container <%v> must set resources.limits.memory (Hydra platform standard)", [c.name])
+        }
