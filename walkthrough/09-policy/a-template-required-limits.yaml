@@ -1,36 +1,37 @@
-# Layer 9a: Gatekeeper ConstraintTemplates. Each becomes a new resource kind on the
-# cluster. The Rego inside is the rule. These two: containers must declare CPU and
-# memory limits; images must be pinned (no :latest, no untagged).
-# Gatekeeper: every container in a hydra-managed namespace must declare CPU and
-# memory limits. Based on the gatekeeper-library "containerlimits" template,
-# trimmed to the check that matters for the demo.
-apiVersion: templates.gatekeeper.sh/v1
+# Layer 9a: a Gatekeeper ConstraintTemplate. Applying it teaches the cluster a new
+# resource kind (HydraRequiredLimits) and the rule behind it, written in Rego.
+# On its own it enforces nothing; a Constraint (9c) switches it on and says where.
+apiVersion: templates.gatekeeper.sh/v1           # Gatekeeper's API, installed by NKP as a platform app
 kind: ConstraintTemplate
 metadata:
-  name: hydrarequiredlimits
+  name: hydrarequiredlimits                      # must be the lowercase form of the kind below
 spec:
   crd:
     spec:
       names:
-        kind: HydraRequiredLimits
+        kind: HydraRequiredLimits                # the new kind this template creates (watch: kubectl get crd | grep hydra)
   targets:
-    - target: admission.k8s.gatekeeper.sh
+    - target: admission.k8s.gatekeeper.sh        # evaluate at admission time: every create/update request to the API server
       rego: |
         package hydrarequiredlimits
 
+        # Collect containers from a Deployment/StatefulSet/DaemonSet pod template...
         containers[c] {
           c := input.review.object.spec.template.spec.containers[_]
         }
+        # ...or from a bare Pod.
         containers[c] {
           c := input.review.object.spec.containers[_]
         }
 
+        # Violation if any container has no CPU limit.
         violation[{"msg": msg}] {
           c := containers[_]
           not c.resources.limits.cpu
           msg := sprintf("Policy: container <%v> must set resources.limits.cpu (Hydra platform standard)", [c.name])
         }
 
+        # Violation if any container has no memory limit.
         violation[{"msg": msg}] {
           c := containers[_]
           not c.resources.limits.memory

@@ -1,24 +1,24 @@
 # Layer 7: the web tier. Two replicas, like WEB01 and WEB02, except these are cattle.
-# Config and the secret arrive as environment variables (envFrom). Readiness is
-# /readyz, which only answers 200 once SQL is reachable, so the Service never sends
-# traffic to a pod that isn't ready. Rolling update: max unavailable 0, surge 1.
+
+# --- The Service: one stable in-cluster address in front of both web pods.
 apiVersion: v1
 kind: Service
 metadata:
-  name: hydra-web
+  name: hydra-web                                # the Ingress (layer 8) routes to this name
   namespace: hydra
   labels:
     app.kubernetes.io/name: hydra-web
     app.kubernetes.io/part-of: hydra
 spec:
-  type: ClusterIP
+  type: ClusterIP                                # internal only; the outside world comes in through the Ingress
   selector:
-    app.kubernetes.io/name: hydra-web
+    app.kubernetes.io/name: hydra-web            # spreads requests across every READY pod with this label
   ports:
     - name: http
-      port: 80
-      targetPort: 8080
+      port: 80                                   # Service port
+      targetPort: 8080                           # container port (Kestrel, non-root)
 ---
+# --- The Deployment: desired state for the web pods. Change it and Kubernetes rolls to the new state.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -28,67 +28,67 @@ metadata:
     app.kubernetes.io/name: hydra-web
     app.kubernetes.io/part-of: hydra
 spec:
-  replicas: 2
+  replicas: 2                                    # two pods; if a node dies, the missing pod is recreated elsewhere
   strategy:
-    type: RollingUpdate
+    type: RollingUpdate                          # replace pods gradually, never all at once
     rollingUpdate:
-      maxUnavailable: 0
-      maxSurge: 1
+      maxUnavailable: 0                          # never drop below 2 ready pods during an update
+      maxSurge: 1                                # start 1 new pod, wait for it to be ready, then retire 1 old one
   selector:
     matchLabels:
       app.kubernetes.io/name: hydra-web
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: hydra-web
+        app.kubernetes.io/name: hydra-web        # matched by the Service, and by colby-api's NetworkPolicy (only these may call it)
         app.kubernetes.io/part-of: hydra
     spec:
-      serviceAccountName: hydra-web
+      serviceAccountName: hydra-web              # identity from layer 4
       securityContext:
-        runAsNonRoot: true
+        runAsNonRoot: true                       # refuse to start as root
         seccompProfile:
-          type: RuntimeDefault
+          type: RuntimeDefault                   # default syscall filter
       containers:
         - name: hydra-web
-          image: ghcr.io/mikestizza/hydra-web:main
+          image: ghcr.io/mikestizza/hydra-web:main   # the image CI built from src/HydraWeb/Dockerfile. Flux pins main-<sha> in layer 10
           ports:
             - name: http
               containerPort: 8080
-          envFrom:
+          envFrom:                               # every key in these becomes an environment variable
             - configMapRef:
-                name: hydra-config
+                name: hydra-config               # layer 3: environment, banner, API URL, DB host
             - secretRef:
-                name: hydra-secret
+                name: hydra-secret               # layer 2: MSSQL_SA_PASSWORD. The app builds its connection string from it
           env:
-            - name: POD_NAMESPACE
+            - name: POD_NAMESPACE                # Downward API: the pod learns which namespace it is in...
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
-            - name: NODE_NAME
+            - name: NODE_NAME                    # ...and which node it landed on. Shown on the Platform page and footer
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
           resources:
             requests:
-              cpu: 100m
+              cpu: 100m                          # what the scheduler reserves: a tenth of a core
               memory: 160Mi
             limits:
-              cpu: "1"
+              cpu: "1"                           # hard caps; also required by our Gatekeeper policy (layer 9)
               memory: 512Mi
           readinessProbe:
             httpGet:
-              path: /readyz
+              path: /readyz                      # returns 200 only when SQL Server answers. Until then the Service sends no traffic here
               port: http
             initialDelaySeconds: 5
             periodSeconds: 5
-            failureThreshold: 12
+            failureThreshold: 12                 # tolerate a minute of "not ready" (SQL starting) without flapping
           livenessProbe:
             httpGet:
-              path: /healthz
+              path: /healthz                     # returns 200 if the process is up. If it stops answering, restart the container
               port: http
             initialDelaySeconds: 10
             periodSeconds: 15
           securityContext:
-            allowPrivilegeEscalation: false
+            allowPrivilegeEscalation: false      # cannot gain privileges after start
             capabilities:
-              drop: ["ALL"]
+              drop: ["ALL"]                      # no Linux capabilities

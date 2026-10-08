@@ -1,26 +1,26 @@
 # Layer 5: the database. SQL Server 2022 on Linux, standing in for WEBAPP / hydra-prod.
-# A StatefulSet (stable name hydra-db-0, stable volume) with a headless Service so
-# the app reaches it as 'hydra-db'. The PVC is carved from the default StorageClass,
-# which is the Nutanix CSI driver: a Nutanix volume, same storage as every VM.
-# For Hydra itself the real SQL Server and Oracle stay where they are; this is here
-# so the demo environment is self-contained.
+# For Hydra itself the real SQL Server and Oracle stay where they are; this is here so
+# the demo environment is self-contained and a branch environment gets its own data.
+
+# --- The Service: a stable DNS name, "hydra-db", for whatever pod is the database right now.
 apiVersion: v1
 kind: Service
 metadata:
-  name: hydra-db
+  name: hydra-db                                 # becomes the DNS name hydra-db.hydra.svc.cluster.local (and just "hydra-db" inside the namespace)
   namespace: hydra
   labels:
     app.kubernetes.io/name: hydra-db
     app.kubernetes.io/part-of: hydra
 spec:
-  clusterIP: None
+  clusterIP: None                                # "headless": no virtual IP, DNS resolves straight to the pod. Right for a single stateful pod.
   selector:
-    app.kubernetes.io/name: hydra-db
+    app.kubernetes.io/name: hydra-db             # which pods this name points at (matched by label)
   ports:
-    - name: tds
-      port: 1433
-      targetPort: 1433
+    - name: tds                                  # Tabular Data Stream, SQL Server's wire protocol
+      port: 1433                                 # port clients connect to
+      targetPort: 1433                           # port the container listens on
 ---
+# --- The StatefulSet: like a Deployment, but each replica keeps a stable name (hydra-db-0) and its own disk.
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -30,61 +30,61 @@ metadata:
     app.kubernetes.io/name: hydra-db
     app.kubernetes.io/part-of: hydra
 spec:
-  serviceName: hydra-db
-  replicas: 1
+  serviceName: hydra-db                          # the headless Service above that gives pods their stable DNS identity
+  replicas: 1                                    # one SQL Server. HA for SQL is a SQL problem (AGs), not a Kubernetes one.
   selector:
     matchLabels:
-      app.kubernetes.io/name: hydra-db
-  template:
+      app.kubernetes.io/name: hydra-db           # which pods belong to this StatefulSet
+  template:                                      # the pod that gets created
     metadata:
       labels:
-        app.kubernetes.io/name: hydra-db
+        app.kubernetes.io/name: hydra-db         # must match the selector above and the Service selector
         app.kubernetes.io/part-of: hydra
     spec:
-      serviceAccountName: hydra-db
+      serviceAccountName: hydra-db               # identity from layer 4
       securityContext:
-        fsGroup: 10001
+        fsGroup: 10001                           # the mounted volume is group-owned by 10001, the mssql user in Microsoft's image, so it can write
       containers:
         - name: mssql
-          image: mcr.microsoft.com/mssql/server:2022-latest
+          image: mcr.microsoft.com/mssql/server:2022-latest   # Microsoft's official image. "2022-latest" is a version line, not a floating :latest
           ports:
             - name: tds
-              containerPort: 1433
+              containerPort: 1433                # documents the port; the Service targets it
           env:
             - name: ACCEPT_EULA
-              value: "Y"
+              value: "Y"                         # required by the image
             - name: MSSQL_PID
-              value: "Developer"
+              value: "Developer"                 # edition; free for dev/test. Production would be Standard or Enterprise with a license
             - name: MSSQL_SA_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: hydra-secret
-                  key: MSSQL_SA_PASSWORD
+                  name: hydra-secret             # the Secret from layer 2
+                  key: MSSQL_SA_PASSWORD         # the one key in it
           resources:
             requests:
-              cpu: 500m
-              memory: 2Gi
+              cpu: 500m                          # scheduler reserves half a core
+              memory: 2Gi                        # SQL Server's documented minimum
             limits:
-              cpu: "2"
-              memory: 3Gi
+              cpu: "2"                           # hard cap: 2 cores
+              memory: 3Gi                        # hard cap: exceed it and the container is OOM-killed and restarted
           readinessProbe:
             tcpSocket:
-              port: 1433
-            initialDelaySeconds: 15
-            periodSeconds: 5
+              port: 1433                         # "ready" = accepting TCP on 1433
+            initialDelaySeconds: 15              # don't start checking until 15 s after start
+            periodSeconds: 5                     # then every 5 s
           livenessProbe:
             tcpSocket:
-              port: 1433
+              port: 1433                         # "alive" = still accepting TCP; if not, restart the container
             initialDelaySeconds: 60
             periodSeconds: 15
           volumeMounts:
-            - name: data
-              mountPath: /var/opt/mssql
-  volumeClaimTemplates:
+            - name: data                         # the volume claimed below
+              mountPath: /var/opt/mssql          # where SQL Server keeps master, user databases and logs
+  volumeClaimTemplates:                          # one PersistentVolumeClaim per replica, created and kept by the StatefulSet
     - metadata:
         name: data
       spec:
-        accessModes: ["ReadWriteOnce"]
+        accessModes: ["ReadWriteOnce"]           # one node mounts it read-write at a time (block storage semantics)
         resources:
           requests:
-            storage: 10Gi
+            storage: 10Gi                        # size. No storageClassName given, so the cluster default is used: nutanix-volume (Nutanix CSI)

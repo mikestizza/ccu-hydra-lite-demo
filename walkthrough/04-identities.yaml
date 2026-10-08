@@ -1,10 +1,18 @@
 # Layer 4: one ServiceAccount per workload. An identity, not a login.
-# None of these pods talk to the Kubernetes API, so no token is mounted.
-# This is what RBAC, policy and (later) workload identity to Azure hang off.
+# RBAC, admission policy and (later) workload identity to Azure or AWS attach to these.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: hydra-web
+  name: hydra-web                                # the web pods run as this identity (spec.serviceAccountName, layer 7)
+  namespace: hydra
+  labels:
+    app.kubernetes.io/part-of: hydra
+automountServiceAccountToken: false              # the app never calls the Kubernetes API, so no API token is mounted into the pod
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: colby-api                                # the API pods run as this one
   namespace: hydra
   labels:
     app.kubernetes.io/part-of: hydra
@@ -13,16 +21,7 @@ automountServiceAccountToken: false
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: colby-api
-  namespace: hydra
-  labels:
-    app.kubernetes.io/part-of: hydra
-automountServiceAccountToken: false
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: hydra-db
+  name: hydra-db                                 # SQL Server runs as this one
   namespace: hydra
   labels:
     app.kubernetes.io/part-of: hydra

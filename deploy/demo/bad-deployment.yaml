@@ -1,14 +1,12 @@
-# Demo: a deployment that breaks both platform policies. Apply it live and
-# watch Gatekeeper reject it before it ever reaches the cluster:
-#
+# Demo: a deployment that breaks both platform policies. Apply it live and watch
+# Gatekeeper reject it before anything reaches the cluster:
 #   kubectl apply -f deploy/demo/bad-deployment.yaml
-#
-# Expected: "admission webhook denied the request" with both policy messages.
+# Expected: admission webhook "validation.gatekeeper.sh" denied the request, three reasons.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: sketchy-sidecar
-  namespace: hydra
+  name: sketchy-sidecar                          # something a well-meaning person might try to drop in
+  namespace: hydra                               # a namespace labeled hydra.ccu/managed=true, so the constraints apply
 spec:
   replicas: 1
   selector:
@@ -21,6 +19,7 @@ spec:
     spec:
       containers:
         - name: sketchy
-          image: nginx:latest
+          image: nginx:latest                    # VIOLATION 1: :latest tag (hydra-images-must-be-pinned)
           ports:
             - containerPort: 80
+          # VIOLATION 2 and 3: no resources.limits.cpu and no resources.limits.memory (hydra-containers-must-have-limits)

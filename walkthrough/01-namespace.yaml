@@ -1,12 +1,10 @@
-# Layer 1: a namespace. The unit of isolation, quota, RBAC and policy scope.
-# The two labels matter:
-#   hydra.ccu/managed=true  -> Gatekeeper policies in walkthrough/09 apply here
-#   pod-security enforce    -> no privileged pods, host networking or host paths
-apiVersion: v1
-kind: Namespace
+# Layer 1: the namespace. The boundary that quotas, RBAC, network policy
+# and admission policy all scope to.
+apiVersion: v1                                   # core API group, v1 (namespaces are as old as Kubernetes)
+kind: Namespace                                  # the object type
 metadata:
-  name: hydra
+  name: hydra                                    # the name every other object in this walkthrough lives under
   labels:
-    app.kubernetes.io/part-of: hydra
-    hydra.ccu/managed: "true"
-    pod-security.kubernetes.io/enforce: baseline
+    app.kubernetes.io/part-of: hydra             # standard label: lets you select everything Hydra-related
+    hydra.ccu/managed: "true"                    # our own label: Gatekeeper constraints (layer 9) target namespaces with this
+    pod-security.kubernetes.io/enforce: baseline # built-in Pod Security Admission: reject privileged pods, host network, host paths

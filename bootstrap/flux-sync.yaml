@@ -1,43 +1,41 @@
-# Flux objects that connect the cluster to this repository.
-# Apply once (bootstrap.sh does it). Everything else is pulled from Git.
+# Layer 10: the Flux objects that connect the cluster to Git. Applied once by bootstrap.sh.
+# After this, the cluster pulls its desired state from the repo; nobody runs kubectl apply.
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: hydra-system
+  name: hydra-system                             # where the platform team's Flux objects for Hydra live (separate from the app namespaces)
   labels:
     app.kubernetes.io/part-of: hydra
 ---
-apiVersion: source.toolkit.fluxcd.io/v1
+# --- Where the desired state lives.
+apiVersion: source.toolkit.fluxcd.io/v1          # Flux's source-controller (ships with NKP in kommander-flux)
 kind: GitRepository
 metadata:
   name: hydra-lite
   namespace: hydra-system
 spec:
-  interval: 30s
-  url: https://github.com/mikestizza/ccu-hydra-lite-demo
+  interval: 30s                                  # check the repo for new commits every 30 seconds
+  url: https://github.com/mikestizza/ccu-hydra-lite-demo   # public repo, so no credentials. A private Azure Repos URL would add a secretRef
   ref:
-    branch: main
+    branch: main                                 # only main is watched. Branches reach the cluster only via files CI writes into main
 ---
-# Root: applies every Flux Kustomization under deploy/flux/envs (one per environment).
-# Adding a file there creates an environment; removing it prunes one.
-apiVersion: kustomize.toolkit.fluxcd.io/v1
+# --- The root: one Flux Kustomization per environment lives in deploy/flux/envs/. Apply them all.
+apiVersion: kustomize.toolkit.fluxcd.io/v1       # Flux's kustomize-controller
 kind: Kustomization
 metadata:
   name: hydra-envs
   namespace: hydra-system
 spec:
-  interval: 1m
-  prune: true
-  wait: false
+  interval: 1m                                   # re-apply every minute, which also undoes any manual drift
+  prune: true                                    # if a file disappears from Git, delete what it created. This is how a branch env is torn down
+  wait: false                                    # don't block on health; each environment reports its own status
   sourceRef:
     kind: GitRepository
-    name: hydra-lite
-  path: ./deploy/flux/envs
-  targetNamespace: hydra-system
+    name: hydra-lite                             # the repo above
+  path: ./deploy/flux/envs                       # prod.yaml today; CI adds <branch>.yaml per feature branch
+  targetNamespace: hydra-system                  # the per-environment Kustomizations are created here
 ---
-# Platform policy (Gatekeeper) for hydra-managed namespaces, in two steps:
-# templates first (Gatekeeper turns each into a CRD), then the constraints
-# that use them. Separate from the apps so policy never blocks an app rollout.
+# --- Policy, step 1: the ConstraintTemplates (same files as walkthrough 9a/9b).
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -46,13 +44,14 @@ metadata:
 spec:
   interval: 5m
   prune: true
-  wait: true
+  wait: true                                     # mark Ready only once the templates are established, so step 2 can depend on it
   timeout: 2m
   sourceRef:
     kind: GitRepository
     name: hydra-lite
   path: ./deploy/policy/templates
 ---
+# --- Policy, step 2: the Constraints (same as walkthrough 9c). Waits for step 1, same ordering you did by hand.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -60,7 +59,7 @@ metadata:
   namespace: hydra-system
 spec:
   dependsOn:
-    - name: hydra-policy
+    - name: hydra-policy                         # don't apply until the templates are Ready (the CRDs exist)
   interval: 5m
   retryInterval: 20s
   prune: true

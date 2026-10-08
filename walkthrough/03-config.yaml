@@ -1,17 +1,18 @@
-# Layer 3: non-secret configuration. Environment variables the app reads.
-# Same image in every environment; this is what makes it "production".
+# Layer 3: non-secret configuration. Every key becomes an environment variable
+# in the web pods (envFrom, layer 7). The image is identical in every environment;
+# this object is what makes this one "production".
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: hydra-config
+  name: hydra-config                             # referenced by name from the Deployment's envFrom
   namespace: hydra
   labels:
     app.kubernetes.io/part-of: hydra
-data:
-  Hydra__Environment: "Production"
-  Hydra__Banner: "Scheduled maintenance: online banking sync paused Sat 10 PM to midnight PT"
-  Hydra__Accent: "#0f2a5a"
-  Hydra__JobIntervalSeconds: "45"
-  ColbyApi__BaseUrl: "http://colby-api"
-  Hydra__DbHost: "hydra-db"
-  Hydra__DbName: "Hydra"
+data:                                            # plain string key/values; .NET reads "Hydra__Banner" as config "Hydra:Banner"
+  Hydra__Environment: "Production"               # shown in the header pill; a branch environment says its branch name here
+  Hydra__Banner: "Scheduled maintenance: online banking sync paused Sat 10 PM to midnight PT"  # yellow banner text; empty = no banner
+  Hydra__Accent: "#0f2a5a"                       # header color; prod is navy, ephemeral envs purple, the NKP project teal
+  Hydra__JobIntervalSeconds: "45"                # how often the Hangfire stand-in runs a job
+  ColbyApi__BaseUrl: "http://colby-api"          # the in-house API, by Kubernetes Service name; resolves only inside the cluster
+  Hydra__DbHost: "hydra-db"                      # SQL Server, by Service name (layer 5)
+  Hydra__DbName: "Hydra"                         # database the app creates on first boot

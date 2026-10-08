@@ -1,7 +1,7 @@
-# Layer 8: the front door. Traefik (the ingress controller NKP ships) terminates TLS
-# and routes by hostname to the hydra-web Service. Traefik itself sits behind a
-# MetalLB LoadBalancer IP, 10.38.207.251, handed out from the pool the cluster got
-# at creation. That IP is what the F5 or Fortinet VIP forwards to.
+# Layer 8: the front door. Hostname in, Service out.
+# Traefik (the ingress controller NKP ships) reads this object and starts routing.
+# Traefik itself sits behind a MetalLB LoadBalancer IP, 10.38.207.251, from the pool the
+# cluster got at creation. That IP is what the F5 or Fortinet VIP would forward to.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -11,21 +11,18 @@ metadata:
     app.kubernetes.io/name: hydra-web
     app.kubernetes.io/part-of: hydra
 spec:
-  ingressClassName: kommander-traefik
-  # No secretName: Traefik serves its default certificate, so https works on
-  # the lab. In production this is a cert-manager Certificate or the Fortinet
-  # terminating TLS in front.
-  tls:
+  ingressClassName: kommander-traefik            # which ingress controller handles this: the Traefik instance NKP deployed
+  tls:                                           # also answer on 443
     - hosts:
-        - hydra.10.38.207.251.sslip.io
+        - hydra.10.38.207.251.sslip.io           # no secretName, so Traefik serves its default (self-signed) cert. Production: cert-manager or TLS at Fortinet
   rules:
-    - host: hydra.10.38.207.251.sslip.io
+    - host: hydra.10.38.207.251.sslip.io         # sslip.io is public wildcard DNS: this name resolves to 10.38.207.251. Production: hydra.columbiacu.org
       http:
         paths:
-          - path: /
+          - path: /                              # every path under that host...
             pathType: Prefix
             backend:
               service:
-                name: hydra-web
+                name: hydra-web                  # ...goes to the hydra-web Service (layer 7)
                 port:
-                  name: http
+                  name: http                     # on its port named http (80 -> 8080)

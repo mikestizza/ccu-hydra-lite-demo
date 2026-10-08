@@ -1,25 +1,26 @@
 # Layer 6: the in-house API and the fence around it.
-# Colby API (mock in-house ancillary service). The Service is ClusterIP: it has a
-# name and an address inside the cluster and nothing else. The NetworkPolicy at the
-# bottom says only pods labeled hydra-web may reach it, on 8080. Cilium enforces it
-# on every node. This is the F5 hairpin going away.
+# Colby API stands in for CCU's custom ancillary services. Reachable only inside the
+# cluster, and only from hydra-web pods. This is the F5 hairpin going away.
+
+# --- The Service: a name and an in-cluster address. ClusterIP means exactly that: nothing outside can reach it.
 apiVersion: v1
 kind: Service
 metadata:
-  name: colby-api
+  name: colby-api                                # DNS name the web app uses: http://colby-api
   namespace: hydra
   labels:
     app.kubernetes.io/name: colby-api
     app.kubernetes.io/part-of: hydra
 spec:
-  type: ClusterIP
+  type: ClusterIP                                # internal virtual IP only. No NodePort, no LoadBalancer, no external address of any kind.
   selector:
-    app.kubernetes.io/name: colby-api
+    app.kubernetes.io/name: colby-api            # load-balances across every pod with this label (both replicas)
   ports:
     - name: http
-      port: 80
-      targetPort: 8080
+      port: 80                                   # clients call port 80...
+      targetPort: 8080                           # ...which maps to 8080 inside the container (non-root processes cannot bind 80)
 ---
+# --- The Deployment: two identical stateless replicas, replaced on every image change.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -29,37 +30,37 @@ metadata:
     app.kubernetes.io/name: colby-api
     app.kubernetes.io/part-of: hydra
 spec:
-  replicas: 2
+  replicas: 2                                    # two pods, scheduled on different nodes when possible
   selector:
     matchLabels:
       app.kubernetes.io/name: colby-api
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: colby-api
+        app.kubernetes.io/name: colby-api        # the label the Service and the NetworkPolicy match on
         app.kubernetes.io/part-of: hydra
     spec:
-      serviceAccountName: colby-api
+      serviceAccountName: colby-api              # identity from layer 4
       securityContext:
-        runAsNonRoot: true
+        runAsNonRoot: true                       # kubelet refuses to start the container if the image would run as root
         seccompProfile:
-          type: RuntimeDefault
+          type: RuntimeDefault                   # syscall filter: the container runtime's default allow-list
       containers:
         - name: colby-api
-          image: ghcr.io/mikestizza/colby-api:main
+          image: ghcr.io/mikestizza/colby-api:main   # the image CI built. Flux will pin this to main-<sha> in layer 10
           ports:
             - name: http
-              containerPort: 8080
+              containerPort: 8080                # Kestrel listens here (ASPNETCORE_URLS in the Dockerfile)
           resources:
             requests:
-              cpu: 50m
+              cpu: 50m                           # tiny: a minimal API idles at a few millicores
               memory: 96Mi
             limits:
               cpu: 500m
               memory: 256Mi
           readinessProbe:
             httpGet:
-              path: /healthz
+              path: /healthz                     # the app's own health endpoint
               port: http
             initialDelaySeconds: 3
             periodSeconds: 5
@@ -70,12 +71,11 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 15
           securityContext:
-            allowPrivilegeEscalation: false
+            allowPrivilegeEscalation: false      # no setuid, no gaining privileges after start
             capabilities:
-              drop: ["ALL"]
+              drop: ["ALL"]                      # no Linux capabilities at all; a web app needs none
 ---
-# Only hydra-web pods in this namespace may talk to colby-api.
-# A pod in any other namespace (or an unlabeled pod here) is denied.
+# --- The NetworkPolicy: who may talk to colby-api. Enforced by Cilium on every node.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -86,13 +86,13 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: colby-api
-  policyTypes: ["Ingress"]
-  ingress:
+      app.kubernetes.io/name: colby-api          # this policy protects the colby-api pods
+  policyTypes: ["Ingress"]                       # we are restricting inbound traffic (egress is left open)
+  ingress:                                       # the ONLY allowed inbound traffic is what's listed here; everything else is dropped
     - from:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/name: hydra-web
+              app.kubernetes.io/name: hydra-web  # pods in this namespace labeled hydra-web
       ports:
         - protocol: TCP
-          port: 8080
+          port: 8080                             # and only on 8080

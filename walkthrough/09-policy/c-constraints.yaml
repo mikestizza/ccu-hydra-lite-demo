@@ -1,24 +1,24 @@
-# Layer 9b: the constraints. Each one says: enforce this template, deny on violation,
-# in namespaces labeled hydra.ccu/managed=true. Apply after the templates have
-# turned into CRDs (kubectl get crd | grep hydra).
+# Layer 9c: the Constraints. These switch the templates on and say where they apply.
+# Apply only after 9a/9b have turned into CRDs (kubectl get crd | grep hydra), otherwise
+# the API server doesn't know these kinds yet.
 apiVersion: constraints.gatekeeper.sh/v1beta1
-kind: HydraRequiredLimits
+kind: HydraRequiredLimits                        # the kind template 9a created
 metadata:
-  name: hydra-containers-must-have-limits
+  name: hydra-containers-must-have-limits        # a readable name; it appears in the denial message
 spec:
-  enforcementAction: deny
+  enforcementAction: deny                        # reject the request. Alternatives: "warn" (allow + warning) or "dryrun" (audit only)
   match:
-    kinds:
+    kinds:                                       # which object types are checked
       - apiGroups: ["apps"]
         kinds: ["Deployment", "StatefulSet", "DaemonSet"]
       - apiGroups: [""]
         kinds: ["Pod"]
     namespaceSelector:
       matchLabels:
-        hydra.ccu/managed: "true"
+        hydra.ccu/managed: "true"                # only namespaces carrying our label (layer 1). Platform namespaces are untouched
 ---
 apiVersion: constraints.gatekeeper.sh/v1beta1
-kind: HydraDisallowLatest
+kind: HydraDisallowLatest                        # the kind template 9b created
 metadata:
   name: hydra-images-must-be-pinned
 spec:
