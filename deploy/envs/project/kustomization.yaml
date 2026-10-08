@@ -6,7 +6,8 @@
 #   - does not create a Namespace (Kommander owns the project namespace)
 #   - does not create the Secret (it is created in the project's Secrets tab,
 #     name hydra-secret, single key MSSQL_SA_PASSWORD)
-#   - hardcodes the ingress host and class (no Flux variable substitution here)
+#   - hardcodes the ingress hosts and class (no Flux variable substitution here),
+#     one host per cluster in the project
 #
 # CI updates the image tags below on every merge to main, same as prod.
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -54,3 +55,24 @@ patches:
       - op: replace
         path: /spec/tls/0/hosts/0
         value: hydra-project.10.38.207.251.sslip.io
+      # The project spans two clusters (stizlab and stizlab2). Kommander applies this same
+      # Ingress on both, so it lists both clusters' hostnames. Each name resolves to its
+      # own cluster's Traefik IP, so the other cluster's rule is never hit.
+      #   stizlab  Traefik 10.38.207.251  ->  hydra-project.10.38.207.251.sslip.io
+      #   stizlab2 Traefik 10.38.207.248  ->  hydra-project.10.38.207.248.sslip.io
+      - op: add
+        path: /spec/tls/0/hosts/-
+        value: hydra-project.10.38.207.248.sslip.io
+      - op: add
+        path: /spec/rules/-
+        value:
+          host: hydra-project.10.38.207.248.sslip.io
+          http:
+            paths:
+              - path: /
+                pathType: Prefix
+                backend:
+                  service:
+                    name: hydra-web
+                    port:
+                      name: http
