@@ -41,7 +41,6 @@ deploy/flux/envs/    One Flux Kustomization per environment (prod.yaml plus gene
 deploy/policy/       Gatekeeper templates/ and constraints/ for hydra-managed namespaces
 deploy/demo/         Things to run live during the demo
 bootstrap/           The one-time cluster hookup (Flux GitRepository, Secret, ConfigMap)
-docs/                Demo runbook
 ```
 
 ## Cluster bootstrap (once)
