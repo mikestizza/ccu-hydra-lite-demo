@@ -16,6 +16,8 @@ It is not Hydra. It is the same *shape*: a .NET web app that talks to SQL Server
                                    └──────────────────────────────────────────────────────────────┘
 ```
 
+<img width="972" height="572" alt="image" src="https://github.com/user-attachments/assets/a443d814-2e79-4652-b5c3-612a568c1d06" />
+
 ## What it demonstrates
 
 | Objective | Where to look |
