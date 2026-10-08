@@ -16,6 +16,9 @@ on:
     paths-ignore:
       - "deploy/envs/**"
       - "deploy/flux/envs/**"
+      - "deploy/demo/**"
+      - "bootstrap/**"
+      - "walkthrough/**"
       - "docs/**"
       - "README.md"
   delete:
