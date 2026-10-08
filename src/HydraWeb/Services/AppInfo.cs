@@ -11,6 +11,7 @@ public sealed class AppInfo
     public string Namespace { get; }
     public string Pod { get; }
     public string Node { get; }
+    public string Cluster { get; }
     public string Version { get; }
     public string GitSha { get; }
     public string Accent { get; }
@@ -23,6 +24,10 @@ public sealed class AppInfo
         Namespace = System.Environment.GetEnvironmentVariable("POD_NAMESPACE") ?? "n/a";
         Pod = System.Environment.GetEnvironmentVariable("HOSTNAME") ?? System.Environment.MachineName;
         Node = System.Environment.GetEnvironmentVariable("NODE_NAME") ?? "n/a";
+        // NKP names worker nodes "<cluster>-md-0-...", so the cluster is the part before "-md-".
+        // CLUSTER_NAME, if set, wins.
+        Cluster = System.Environment.GetEnvironmentVariable("CLUSTER_NAME")
+                  ?? (Node.Contains("-md-") ? Node[..Node.IndexOf("-md-")] : Node);
         Version = cfg["APP_VERSION"] ?? "dev";
         GitSha = cfg["GIT_SHA"] ?? "local";
         Accent = cfg["Hydra:Accent"] ?? "#0f2a5a";
