@@ -1,6 +1,6 @@
 # Hydra-lite
 
-A small, honest stand-in for CCU's **Hydra** staff application, built to show what the web tier looks like running as Linux containers on **Nutanix Kubernetes Platform (NKP)**.
+A lightweight stand-in for CCU's **Hydra** staff application, built to show what the web tier looks like running as Linux containers on **Nutanix Kubernetes Platform (NKP)**.
 
 It is not Hydra. It is the same *shape*: a .NET web app that talks to SQL Server, calls an in-house API, and runs background jobs in-process the way Hangfire does today.
 
