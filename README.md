@@ -48,8 +48,8 @@ bootstrap/           The one-time cluster hookup (Flux GitRepository, Secret, Co
 From a machine with `kubectl` pointed at the NKP workload cluster:
 
 ```bash
-git clone https://github.com/mikestizza/ccu-hydra-lite-demo
-cd ccu-hydra-lite-demo
+git clone https://github.com/mikestizza/ccu-hydra-lite
+cd ccu-hydra-lite
 INGRESS_DOMAIN=<traefik-lb-ip>.sslip.io ./bootstrap/bootstrap.sh
 ```
 

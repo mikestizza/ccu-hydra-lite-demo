@@ -8,7 +8,7 @@ Everything so far was applied by a person with kubectl. That proves each layer; 
 
 bootstrap.sh keeps the `hydra-system/hydra-secrets` you created in step 02 (same password), adds the `hydra-cluster-vars` ConfigMap (Traefik IP, ingress class) and applies `bootstrap/flux-sync.yaml`:
 
-- a `GitRepository` pointing at github.com/mikestizza/ccu-hydra-lite-demo, branch main, polled every 30 s
+- a `GitRepository` pointing at github.com/mikestizza/ccu-hydra-lite, branch main, polled every 30 s
 - a root `Kustomization` that applies every file under `deploy/flux/envs/` (one per environment; CI adds and removes them)
 - two `Kustomization`s for policy, templates first, then constraints
 

@@ -15,7 +15,7 @@ metadata:
   namespace: hydra-system
 spec:
   interval: 30s                                  # check the repo for new commits every 30 seconds
-  url: https://github.com/mikestizza/ccu-hydra-lite-demo   # public repo, so no credentials. A private Azure Repos URL would add a secretRef
+  url: https://github.com/mikestizza/ccu-hydra-lite   # public repo, so no credentials. A private Azure Repos URL would add a secretRef
   ref:
     branch: main                                 # only main is watched. Branches reach the cluster only via files CI writes into main
 ---

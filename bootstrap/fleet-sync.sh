@@ -31,7 +31,7 @@ metadata:
   namespace: $NS
 spec:
   interval: 30s                        # check the repo every 30 s
-  url: https://github.com/mikestizza/ccu-hydra-lite-demo
+  url: https://github.com/mikestizza/ccu-hydra-lite
   ref:
     branch: main
 ---
