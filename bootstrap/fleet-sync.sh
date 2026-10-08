@@ -16,6 +16,13 @@ NS="${NS:-hydra-lite-6mg6s}"
 kubectl get ns "$NS" >/dev/null                      # project namespace must exist (Kommander federates it)
 kubectl -n "$NS" get secret hydra-secret >/dev/null  # and the project secret
 
+# NKP's Gatekeeper policy (kustomization-must-have-sa) requires every Flux Kustomization in a
+# project namespace to run as a named, scoped ServiceAccount, not Flux's cluster-wide identity.
+# Use the same one Kommander uses for its own Kustomization in this namespace.
+SA="${SA:-$(kubectl -n "$NS" get kustomizations -o jsonpath='{range .items[*]}{.spec.serviceAccountName}{"\n"}{end}' 2>/dev/null | grep -v '^$' | head -1)}"
+[ -n "$SA" ] || { echo "Could not find the project's deployer ServiceAccount. Run: kubectl -n $NS get sa"; exit 1; }
+echo "Using project ServiceAccount: $SA"
+
 cat <<EOF | kubectl apply -f -
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: GitRepository
@@ -34,6 +41,7 @@ metadata:
   name: hydra-lite-fleet
   namespace: $NS
 spec:
+  serviceAccountName: $SA              # apply as the project's scoped identity (required by NKP policy)
   interval: 1m                         # re-apply every minute (undoes drift)
   prune: true                          # remove what Git no longer has
   wait: false
